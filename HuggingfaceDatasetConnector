@@ -1,0 +1,102 @@
+from datasets import load_dataset
+from nomic import AtlasDataset
+import numpy as np
+import hashlib
+
+
+# Gets data from a Hugging Face dataset
+def fetch_data_from_huggingface(dataset_identifier):
+    dataset = load_dataset(dataset_identifier)
+    data = []
+    for split in dataset.keys():
+        for i, example in enumerate(dataset[split]):
+            # Generate a unique and shortened ID
+            unique_str = f"{dataset_identifier}_{split}_{i}"
+            short_id = hashlib.sha1(unique_str.encode()).hexdigest()[:25]
+            example['id'] = short_id
+            data.append(example)
+    return data
+
+
+# Preprocesses field entries: flattens lists, processes images, converts booleans, or converts to string
+def preprocess_field_entries(data, indexed_field):
+    for entry in data:
+        if isinstance(entry[indexed_field], list):
+            entry[indexed_field] = ' '.join(map(str, entry[indexed_field]))
+        elif isinstance(entry[indexed_field], np.ndarray):
+            entry[indexed_field] = ' '.join(map(str, entry[indexed_field].flatten()))
+        elif isinstance(entry[indexed_field], dict) and 'image' in entry[indexed_field]:
+            # Assuming images are provided in a dict under the 'image' key
+            image = entry[indexed_field]['image']
+            if isinstance(image, np.ndarray):
+                entry[indexed_field] = ' '.join(map(str, image.flatten()))
+            else:
+                entry[indexed_field] = str(image)
+        elif hasattr(entry[indexed_field], 'tolist'):
+            entry[indexed_field] = ' '.join(map(str, entry[indexed_field].tolist()))
+        elif isinstance(entry[indexed_field], str):
+            pass  # No need to process if it's already a string
+        elif isinstance(entry[indexed_field], bool):
+            entry[indexed_field] = str(entry[indexed_field])  # Convert booleans to string
+        else:
+            entry[indexed_field] = str(entry[indexed_field])
+    return data
+
+
+# Creates map from a list of data entries
+def create_map_from_data(data, map_name, indexed_field):
+    if not data:
+        raise ValueError("No data found.")
+    
+    # Check if indexed_field exists in data
+    if indexed_field not in data[0]:
+        raise ValueError(f"Field '{indexed_field}' not found in the dataset.")
+    
+    # Preprocess field entries
+    data = preprocess_field_entries(data, indexed_field)
+    
+    dataset = AtlasDataset(
+        map_name,
+        unique_id_field="id",
+    )
+    dataset.add_data(data=data)
+    
+    map = dataset.create_index(
+        indexed_field=indexed_field,
+        topic_model=True,
+        embedding_model='NomicEmbed'
+    )
+    
+    return map
+
+
+if __name__ == "__main__":
+    dataset_identifiers = input("Enter Hugging Face dataset identifiers separated by commas: ").split(',')
+    indexed_field = input("Enter the field to index by (e.g., 'text'): ").strip()
+    all_data = []
+    dataset_names = []
+    
+    for dataset_identifier in dataset_identifiers:
+        dataset_name = dataset_identifier.split('/')[-1].strip()
+        dataset_names.append(dataset_name)
+        
+        data = fetch_data_from_huggingface(dataset_identifier.strip())
+        if data:
+            all_data.extend(data)
+    
+    if all_data:
+        combined_dataset_names = '_'.join(dataset_names)
+        map_name = combined_dataset_names
+        
+        try:
+            data_map = create_map_from_data(all_data, map_name, indexed_field)
+            print(f"Data map '{map_name}' has been created")
+        except ValueError as e:
+            print(f"Error creating data map: {e}")
+    else:
+        print("No data was found for the provided datasets.")
+
+
+
+
+
