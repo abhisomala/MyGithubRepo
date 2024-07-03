@@ -3,13 +3,24 @@ from nomic import AtlasDataset
 import numpy as np
 import hashlib
 
-# Fetches data from a Hugging Face dataset
+# Gets data from a Hugging Face dataset with automatic configuration 
 def fetch_data_from_huggingface(dataset_identifier):
-    dataset = load_dataset(dataset_identifier)
+    try:
+        # Try loading the dataset without specifying a configuration
+        dataset = load_dataset(dataset_identifier)
+    except ValueError as e:
+        # If there is an error it might be because of the config selection
+        if "Please pick one among the available configs" in str(e):
+            # Gets avaliable config and selects first one
+            available_configs = str(e).split("['")[1].split("']")[0].split("', '")
+            dataset = load_dataset(dataset_identifier, available_configs[0])
+        else:
+            raise e
+
     data = []
     for split in dataset.keys():
         for i, example in enumerate(dataset[split]):
-            # Generate a unique and shortened ID
+            # Creates a unique and shortened ID
             unique_str = f"{dataset_identifier}_{split}_{i}"
             short_id = hashlib.sha1(unique_str.encode()).hexdigest()[:25]
             example['id'] = short_id
@@ -31,12 +42,14 @@ def preprocess_field_entries(data, indexed_field):
             entry[indexed_field] = str(entry[indexed_field])
     return data
 
-# Converts all boolean fields in the dataset to strings
-def convert_booleans_to_strings(data):
+# Converts all boolean fields and list fields in the dataset to strings
+def convert_booleans_and_lists_to_strings(data):
     for entry in data:
         for key, value in entry.items():
             if isinstance(value, bool):
                 entry[key] = str(value)
+            elif isinstance(value, list):
+                entry[key] = ' '.join(map(str, value))
     return data
 
 # Creates map from a list of data entries
@@ -44,8 +57,8 @@ def create_map_from_data(data, map_name, indexed_field):
     if not data:
         raise ValueError("No data found.")
 
-    # Convert all boolean fields to strings
-    data = convert_booleans_to_strings(data)
+    # Convert all boolean fields and list fields to strings
+    data = convert_booleans_and_lists_to_strings(data)
 
     # Check if indexed_field exists in data
     if indexed_field not in data[0]:
