@@ -2,16 +2,25 @@ from datasets import load_dataset
 from nomic import AtlasDataset
 import numpy as np
 import hashlib
+from PIL import Image
+import base64
+import io
 
-# Gets data from a Hugging Face dataset with automatic configuration 
+# Converts images to base64 
+def image_to_base64(image):
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+# Gets data from a Hugging Face dataset with automatic configuration
 def fetch_data_from_huggingface(dataset_identifier):
     try:
-        # Try loading the dataset without specifying a configuration
+        
         dataset = load_dataset(dataset_identifier)
     except ValueError as e:
         # If there is an error it might be because of the config selection
         if "Please pick one among the available configs" in str(e):
-            # Gets avaliable config and selects first one
+            # Gets available config and selects first one
             available_configs = str(e).split("['")[1].split("']")[0].split("', '")
             dataset = load_dataset(dataset_identifier, available_configs[0])
         else:
@@ -38,6 +47,8 @@ def preprocess_field_entries(data, indexed_field):
             entry[indexed_field] = ' '.join(map(str, entry[indexed_field].tolist()))
         elif isinstance(entry[indexed_field], (str, bool, int, float)):
             entry[indexed_field] = str(entry[indexed_field])
+        elif isinstance(entry[indexed_field], Image.Image):
+            entry[indexed_field] = image_to_base64(entry[indexed_field])
         else:
             entry[indexed_field] = str(entry[indexed_field])
     return data
@@ -50,6 +61,10 @@ def convert_booleans_and_lists_to_strings(data):
                 entry[key] = str(value)
             elif isinstance(value, list):
                 entry[key] = ' '.join(map(str, value))
+            elif isinstance(value, Image.Image):
+                entry[key] = image_to_base64(value)
+            elif isinstance(value, str):
+                entry[key] = value  # Keep strings as they are, including file paths
     return data
 
 # Creates map from a list of data entries
