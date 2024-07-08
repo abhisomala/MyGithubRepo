@@ -6,16 +6,37 @@ from PIL import Image
 import base64
 import io
 
-# Converts images to base64 
+
+# Converts images to base64
 def image_to_base64(image):
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-# Gets data from a Hugging Face dataset with automatic configuration
+
+# Flattens nested dictionaries and lists into a dictionary
+def flatten_data(entry):
+    flat_entry = {}
+    for key, value in entry.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in flatten_data(value).items():
+                flat_entry[f"{key}_{sub_key}"] = sub_value
+        elif isinstance(value, list):
+            if all(isinstance(i, dict) for i in value):
+                for idx, item in enumerate(value):
+                    for sub_key, sub_value in flatten_data(item).items():
+                        flat_entry[f"{key}_{idx}_{sub_key}"] = sub_value
+            else:
+                flat_entry[key] = ' '.join(map(str, value))
+        else:
+            flat_entry[key] = value
+    return flat_entry
+
+
+# Gets data from a Hugging Face dataset with auto config
 def fetch_data_from_huggingface(dataset_identifier):
     try:
-        
+        # Try loading the dataset without specifying a configuration
         dataset = load_dataset(dataset_identifier)
     except ValueError as e:
         # If there is an error it might be because of the config selection
@@ -33,8 +54,9 @@ def fetch_data_from_huggingface(dataset_identifier):
             unique_str = f"{dataset_identifier}_{split}_{i}"
             short_id = hashlib.sha1(unique_str.encode()).hexdigest()[:25]
             example['id'] = short_id
-            data.append(example)
+            data.append(flatten_data(example))
     return data
+
 
 # Preprocesses field entries: flattens lists, converts arrays to strings, or converts to string
 def preprocess_field_entries(data, indexed_field):
@@ -53,6 +75,7 @@ def preprocess_field_entries(data, indexed_field):
             entry[indexed_field] = str(entry[indexed_field])
     return data
 
+
 # Converts all boolean fields and list fields in the dataset to strings
 def convert_booleans_and_lists_to_strings(data):
     for entry in data:
@@ -64,8 +87,9 @@ def convert_booleans_and_lists_to_strings(data):
             elif isinstance(value, Image.Image):
                 entry[key] = image_to_base64(value)
             elif isinstance(value, str):
-                entry[key] = value  # Keep strings as they are, including file paths
+                entry[key] = value 
     return data
+
 
 # Creates map from a list of data entries
 def create_map_from_data(data, map_name, indexed_field):
@@ -95,6 +119,7 @@ def create_map_from_data(data, map_name, indexed_field):
     )
 
     return map
+
 
 if __name__ == "__main__":
     dataset_identifiers = input("Enter Hugging Face dataset identifiers separated by commas: ").split(',')
