@@ -1,0 +1,27 @@
+from nomic import AtlasDataset
+
+
+def create_atlas_map(dataset_name):
+  
+        # Loads existing AtlasDataset
+        dataset = AtlasDataset(dataset_name, unique_id_field="id")
+
+
+        # Creates Atlas map 
+        atlas_map = dataset.create_index(
+        modality='image',
+        topic_model=True,
+        embedding_model='nomic-embed-vision-v1.5'
+    )
+        return atlas_map
+
+
+if __name__ == "__main__":
+        dataset_name = input("Enter the name of the dataset: ").strip()
+        atlas_map = create_atlas_map(dataset_name)
+        print(f"Atlas map has been created for dataset '{dataset_name}'")
+   
+
+
+
+
