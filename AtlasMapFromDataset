@@ -2,25 +2,33 @@ from nomic import AtlasDataset
 
 
 def create_atlas_map(dataset_name):
+    # Load the existing AtlasDataset
+    dataset = AtlasDataset(dataset_name, unique_id_field="id")
+
+    dataset.add_data(blobs)
+
+    # Create the Atlas map without specifying an indexed field
+    atlas_map = dataset.create_index(
   
-        # Loads existing AtlasDataset
-        dataset = AtlasDataset(dataset_name, unique_id_field="id")
-
-
-        # Creates Atlas map 
-        atlas_map = dataset.create_index(
-        modality='image',
         topic_model=True,
         embedding_model='nomic-embed-vision-v1.5'
+        # Do not specify an indexed_field
     )
-        return atlas_map
+    return atlas_map
 
 
 if __name__ == "__main__":
-        dataset_name = input("Enter the name of the dataset: ").strip()
-        atlas_map = create_atlas_map(dataset_name)
-        print(f"Atlas map has been created for dataset '{dataset_name}'")
-   
+    # Prompt the user for the dataset name
+    dataset_name = input("Enter the name of the dataset: ").strip()
+
+
+    # Create the Atlas map
+    atlas_map = create_atlas_map(dataset_name)
+
+
+    # Print success message
+    print(f"Atlas map has been created for dataset '{dataset_name}'")
+
 
 
 
